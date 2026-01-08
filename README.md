@@ -53,8 +53,16 @@ In separate terminals, follow this sequence:
    ```bash
    robot tests/connectivity.robot
    ```
+### 4. Cleanup
 
-### 4. CI/CD Integration
+To stop the background processes (UART bridges) and remove virtual network interfaces, run:
+
+```bash
+chmod +x scripts/cleanup.sh
+./scripts/cleanup.sh
+```
+
+### 5. CI/CD Integration
 
 This repository uses **GitHub Actions** to enforce high engineering standards on every push:
 
