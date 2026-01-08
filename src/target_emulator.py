@@ -14,63 +14,63 @@ class TargetEmulator:
         self.running = True
         self.system_status = "IDLE"
 
-    def uart_worker(self):
-        """Handle serial communication for control and debug"""
+    def _uart_worker(self):
         try:
-            with serial.Serial(UART_PORT, 9600, timeout=1) as ser:
+            with serial.Serial(UART_PORT, 9600, timeout=0.1) as ser:
+                ser.reset_input_buffer()
+                ser.reset_output_buffer()
                 while self.running:
                     if ser.in_waiting > 0:
                         raw_data = ser.readline().decode("utf-8").strip()
                         if raw_data == "GET_STATUS":
-                            response = f"STATUS:{self.system_status}\n"
-                            ser.write(response.encode())
+                            ser.write(f"STATUS:{self.system_status}\n".encode())
+                            ser.flush()
+                    time.sleep(0.01)
         except Exception as e:
-            print(f"UART Thread Error: {e}")
+            print(f"[ERROR] UART: {e}")
 
-    def can_worker(self):
-        """Handle CAN bus telemetry simulation"""
+    def _can_worker(self):
         try:
-            bus = can.Bus(interface="socketcan", channel=CAN_CH)
-            while self.running:
-                msg = bus.recv(timeout=1.0)
-                if msg:
-                    self.system_status = "BUSY_RX"
+            with can.Bus(interface="socketcan", channel=CAN_CH) as bus:
+                while self.running:
+                    msg = bus.recv(timeout=1.0)
+                    if msg:
+                        self.system_status = "BUSY_RX"
         except Exception as e:
-            print(f"CAN Thread Error: {e}")
+            print(f"[ERROR] CAN: {e}")
 
-    def udp_worker(self):
-        """Handle Ethernet/UDP maintenance port"""
+    def _udp_worker(self):
         try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            sock.bind((UDP_IP, UDP_PORT))
-            sock.settimeout(1.0)
-            while self.running:
-                try:
-                    data, addr = sock.recvfrom(1024)
-                    if data == b"PING":
-                        sock.sendto(b"PONG", addr)
-                except socket.timeout:
-                    continue
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+                sock.bind((UDP_IP, UDP_PORT))
+                sock.settimeout(1.0)
+                while self.running:
+                    try:
+                        data, addr = sock.recvfrom(1024)
+                        if data == b"PING":
+                            sock.sendto(b"PONG", addr)
+                    except socket.timeout:
+                        continue
         except Exception as e:
-            print(f"UDP Thread Error: {e}")
+            print(f"[ERROR] UDP: {e}")
 
     def start(self):
-        """Initialize and start all communication threads"""
         threads = [
-            threading.Thread(target=self.uart_worker, daemon=True),
-            threading.Thread(target=self.can_worker, daemon=True),
-            threading.Thread(target=self.udp_worker, daemon=True),
+            threading.Thread(target=self._uart_worker, daemon=True),
+            threading.Thread(target=self._can_worker, daemon=True),
+            threading.Thread(target=self._udp_worker, daemon=True),
         ]
-
+        
         for t in threads:
             t.start()
 
-        print("[INFO] Target Emulator active. Monitoring CAN, UART, and UDP...")
+        print("[INFO] Target Emulator active (CAN, UART, UDP). Press Ctrl+C to stop.")
         try:
             while self.running:
                 time.sleep(0.1)
         except KeyboardInterrupt:
             self.running = False
+            print("\n[INFO] Stopping emulator...")
 
 if __name__ == "__main__":
     emulator = TargetEmulator()
