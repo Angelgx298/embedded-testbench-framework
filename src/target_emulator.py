@@ -9,6 +9,7 @@ CAN_CH = "vcan0"
 UDP_IP = "127.0.0.1"
 UDP_PORT = 5005
 
+
 class TargetEmulator:
     def __init__(self):
         self.running = True
@@ -17,7 +18,7 @@ class TargetEmulator:
     def _uart_worker(self):
         try:
             with serial.Serial(UART_PORT, 9600, timeout=0.1) as ser:
-                ser.reset_input_buffer()
+                ser.reset_input_buffer()  # Clear stale data from virtual PTY
                 ser.reset_output_buffer()
                 while self.running:
                     if ser.in_waiting > 0:
@@ -43,7 +44,7 @@ class TargetEmulator:
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
                 sock.bind((UDP_IP, UDP_PORT))
-                sock.settimeout(1.0)
+                sock.settimeout(1.0)  # Prevent CPU hogging
                 while self.running:
                     try:
                         data, addr = sock.recvfrom(1024)
@@ -60,17 +61,18 @@ class TargetEmulator:
             threading.Thread(target=self._can_worker, daemon=True),
             threading.Thread(target=self._udp_worker, daemon=True),
         ]
-        
+
         for t in threads:
             t.start()
 
         print("[INFO] Target Emulator active (CAN, UART, UDP). Press Ctrl+C to stop.")
         try:
             while self.running:
-                time.sleep(0.1)
+                time.sleep(0.1)  # Prevent CPU hogging
         except KeyboardInterrupt:
             self.running = False
             print("\n[INFO] Stopping emulator...")
+
 
 if __name__ == "__main__":
     emulator = TargetEmulator()

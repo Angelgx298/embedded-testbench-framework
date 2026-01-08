@@ -3,12 +3,14 @@ import can
 import socket
 import time
 
+
 class ProtocolLib:
     def __init__(self):
         self.timeout = 2.0
         self.uart = None
 
     def _uart_connect(self, port):
+        # Persistent connection to avoid OS overhead and buffer loss between keywords
         if not self.uart:
             self.uart = serial.Serial(port, 9600, timeout=self.timeout)
             self.uart.reset_input_buffer()
@@ -21,23 +23,24 @@ class ProtocolLib:
     def uart_expect_response(self, port, expected_prefix):
         self._uart_connect(port)
         start_time = time.time()
-        
+
+        # Polling loop to wait for data arrival before attempting to read
         while self.uart.in_waiting == 0:
             if time.time() - start_time > self.timeout:
                 raise AssertionError(f"Timeout: No response on {port}")
             time.sleep(0.1)
-        
+
         response = self.uart.readline().decode().strip()
         if expected_prefix not in response:
             raise AssertionError(f"Expected '{expected_prefix}' but got '{response}'")
         return response
 
     def can_send_telemetry(self, channel, msg_id, data_hex):
-        with can.Bus(interface='socketcan', channel=channel) as bus:
+        with can.Bus(interface="socketcan", channel=channel) as bus:
             msg = can.Message(
                 arbitration_id=int(msg_id, 16),
                 data=bytes.fromhex(data_hex),
-                is_extended_id=False
+                is_extended_id=False,
             )
             bus.send(msg)
 
